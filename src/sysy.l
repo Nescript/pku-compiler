@@ -28,25 +28,42 @@ Decimal       [1-9][0-9]*
 Octal         0[0-7]*
 Hexadecimal   0[xX][0-9a-fA-F]+
 
+/* 块注释的状态 */
+%x COMMENT
+
 // 这里写一些 Flex/Bison 相关的定义
 // 对于 Flex, 这里可以定义某个符号对应的正则表达式
 // 对于 Bison, 这里可以定义终结符/非终结符的类型
 
 %%
 
-{WhiteSpace}    { /* 忽略, 不做任何操作 */ }
-{LineComment}   { /* 忽略, 不做任何操作 */ }
+{WhiteSpace}          { /* 忽略, 不做任何操作 */ }
+{LineComment}         { /* 忽略, 不做任何操作 */ }
 
-"int"           { return INT; }
-"return"        { return RETURN; }
+"int"                 { return INT; }
+"return"              { return RETURN; }
 
-{Identifier}    { yylval.str_val = new string(yytext); return IDENT; }
+{Identifier}          { yylval.str_val = new string(yytext); return IDENT; }
 
-{Decimal}       { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
-{Octal}         { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
-{Hexadecimal}   { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
+{Decimal}             { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
+{Octal}               { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
+{Hexadecimal}         { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 
-.               { return yytext[0]; }
+.                     { return yytext[0]; }
+
+/* 块注释 */      
+"/*"                  { BEGIN(COMMENT); }
+
+<COMMENT>"*/"         { BEGIN(INITIAL); }
+<COMMENT>\n           { /* 忽略换行, 不做任何操作 */ }
+<COMMENT>.            { /* 忽略普通字符, 不做任何操作 */ }
+<COMMENT><<EOF>>      {
+                          std::cerr << "Error: Unclosed comment" << std::endl;
+                          yyterminate();
+                      }
+                    
+// 所以上面基本上就是忽略不要的，然后针对那些要的，存储匹配的/转换后的（对于那种需要转换的）字符串，返回其 token 类型
+
 // 这里写 Flex/Bison 的规则描述
 // 对于 Flex, 这里写的是 lexer 扫描到某个 token 后做的操作
 // 对于 Bison, 这里写的是 parser 遇到某种语法规则后做的操作
