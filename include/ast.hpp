@@ -4,15 +4,16 @@
 #include <memory>
 #include <iostream>
 #include <ostream>
+#include <string>
 
 class BaseAST {
 public:
   virtual ~BaseAST() = default;
-  virtual void Dump() const = 0;
+  virtual void Dump(std::ostream& os) const = 0;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const std::unique_ptr<BaseAST>& ast) {
-  if (ast) ast->Dump();
+  if (ast) ast->Dump(os);
   else os << "nullptr";
   return os;
 }
@@ -20,7 +21,7 @@ inline std::ostream& operator<<(std::ostream& os, const std::unique_ptr<BaseAST>
 class CompUnitAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> func_def;
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const override {
     os << "CompUnitAST { " << func_def << " }";
   }
 };
@@ -30,39 +31,32 @@ public:
   std::unique_ptr<BaseAST> func_type;
   std::string ident;
   std::unique_ptr<BaseAST> block;
-  void Dump(std::ostream& os) {
-    os << func_type << " " << ident << " " << block;
+  void Dump(std::ostream& os) const override {
+    os << "FuncDefAST { " << func_type << ", " << ident << ", " << block << " }";
   }
 };
 
 class FuncTypeAST : public BaseAST {
 public:
-  std::string type;
-  void Dump(std::ostream& os) {
-    os << type;
+  std::unique_ptr<std::string> type;
+  void Dump(std::ostream& os) const override {
+    os << "FuncTypeAST { " << *type << " }";
   }
 };
 
 class BlockAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> stmt;
-  void Dump(std::ostream& os) {
-    os << "{ " << stmt << " }";
+  void Dump(std::ostream& os) const override {
+    os << "BlockAST { " << stmt << " }";
   }
 };
 
 class StmtAST : public BaseAST {
 public:
-  std::unique_ptr<BaseAST> number;
-  void Dump(std::ostream& os) {
-    os << "return " << number << ";";
-  }
-};
-
-class NumberAST : public BaseAST {
-public:
-  int int_const;
-  void Dump(std::ostream& os) {
-    os << int_const;
+  int number;
+  // 这里是int还是别的longlong呢？要取决于语言的定义
+  void Dump(std::ostream& os) const override {
+    os << "StmtAST { " << number << " }";
   }
 };

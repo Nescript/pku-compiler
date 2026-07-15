@@ -1,6 +1,7 @@
 %code requires {
   #include <memory>
   #include <string>
+  #include "ast.hpp"
 }
 
 %{
@@ -8,9 +9,10 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include "ast.hpp"
 
 int yylex();
-void yyerror(std::unique_ptr<std::string> &ast, const char *s);
+void yyerror(std::unique_ptr<BaseAST> &ast, const char *s);
 
 using namespace std;
 
@@ -19,7 +21,7 @@ using namespace std;
 // 定义 parser 函数和错误处理函数的附加参数
 // 我们需要返回一个字符串作为 AST, 所以我们把附加参数定义成字符串的智能指针
 // 解析完成后, 我们要手动修改这个参数, 把它设置成解析得到的字符串
-%parse-param { std::unique_ptr<std::string> &ast }
+%parse-param { std::unique_ptr<BaseAST> &ast }
 
 // yylval 的定义, 我们把它定义成了一个联合体 (union)
 // 因为 token 的值有的是字符串指针, 有的是整数
@@ -29,6 +31,7 @@ using namespace std;
 %union {
   std::string *str_val;
   int int_val;
+  BaseAST* ast_val;
 }
 
 // 
@@ -37,7 +40,8 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <str_val> FuncDef FuncType Block Stmt Number
+%type <ast_val> FuncDef FuncType Block Stmt
+%type <int_val> Number
 
 // 这里写一些 Flex/Bison 相关的定义
 // 对于 Flex, 这里可以定义某个符号对应的正则表达式
@@ -52,42 +56,49 @@ using namespace std;
 // $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
 CompUnit
   : FuncDef {
-    ast = unique_ptr<string>($1);
+    auto comp_unit = make_unique<CompUnitAST>();
+    comp_unit->func_def = unique_ptr<BaseAST>($1);
+    ast = std::move(comp_unit);
   }
   ;
 
 FuncDef
   : FuncType IDENT '(' ')' Block {
-    auto type = unique_ptr<string>($1);
-    auto ident = unique_ptr<string>($2);
-    auto block = unique_ptr<string>($5);
-    $$ = new string(*type + " " + *ident + "() " + *block);
+    auto ast = new FuncDefAST();
+    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->block = unique_ptr<BaseAST>($5);
+    $$ = ast;
   }
   ;
 
 FuncType
   : INT {
-    $$ = new string("int");
+    auto ast = new FuncTypeAST();
+    ast->type = make_unique<string>("int");
+    $$ = ast;
   }
   ;
 
 Block
   : '{' Stmt '}' {
-    auto stmt = unique_ptr<string>($2);
-    $$ = new string("{ " + *stmt + " }");
+    auto ast = new BlockAST();
+    ast->stmt = unique_ptr<BaseAST>($2);
+    $$ = ast;
   }
   ;
 
 Stmt
   : RETURN Number ';' {
-    auto number = unique_ptr<string>($2);
-    $$ = new string("return " + *number + ";");
+    auto ast = new StmtAST();
+    ast->number = $2;
+    $$ = ast;
   }
   ;
 
 Number
   : INT_CONST {
-    $$ = new string(to_string($1));
+    $$ = $1;
   }
   ;
 // 这里写 Flex/Bison 的规则描述
@@ -96,7 +107,7 @@ Number
 
 %%
 
-void yyerror(unique_ptr<string> &ast, const char *s) {
+void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
   std::cerr << "Error: " << s << std::endl;
 }
 

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(compiler)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # settings
 # set to OFF to enable C mode
@@ -45,6 +46,7 @@ link_directories(${LIB_DIR})
 
 # project include directories
 include_directories(src)
+include_directories(include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${INC_DIR})
 
