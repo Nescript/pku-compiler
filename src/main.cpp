@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <fstream>
 #include <cassert>
 #include "ast.hpp"
 
@@ -18,12 +19,19 @@ int main(int argc, const char *argv[]) {
 
   yyin = fopen(input, "r");
   assert(yyin);
+  std::ofstream outfile(output);
 
   unique_ptr<BaseAST> ast;
   auto ret = yyparse(ast);
   assert(!ret);
 
-  cout << ast << endl;
+  if (std::string(mode) == "-koopa") {
+    // cout << ast << endl;
+    outfile << ast->OutputIR() << endl;
+  } else {
+    assert(0);
+  }
+
   return 0;
 
 }

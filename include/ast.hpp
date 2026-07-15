@@ -16,6 +16,7 @@ class BaseAST {
 public:
   virtual ~BaseAST() = default;
   virtual void Dump(std::ostream& os, int indent) const = 0;
+  virtual std::string OutputIR() = 0;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const std::unique_ptr<BaseAST>& ast) {
@@ -34,13 +35,19 @@ public:
     print_indent(os, indent);
     os << "}" << std::endl;
   }
+  std::string OutputIR() override {
+    return func_def->OutputIR();
+  }
+
 };
 
 class FuncDefAST : public BaseAST {
 public:
+  
   std::unique_ptr<BaseAST> func_type;
   std::string ident;
   std::unique_ptr<BaseAST> block;
+  // std::string IR;
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
     os << "FuncDefAST { " << std::endl;
@@ -50,6 +57,9 @@ public:
     block->Dump(os, indent + 1);
     print_indent(os, indent);
     os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    return "fun @" + ident + "(): " + func_type->OutputIR() + block->OutputIR();
   }
 };
 
@@ -64,6 +74,10 @@ public:
     print_indent(os, indent);
     os << "}" << std::endl;
   }
+  std::string OutputIR() override {
+    if (*type == "int") return "i32 "; // 要思考空格的位置
+    else return "UNDEFINE TYPE"; 
+  }
 };
 
 class BlockAST : public BaseAST {
@@ -75,6 +89,9 @@ public:
     stmt->Dump(os, indent + 1);
     print_indent(os, indent);
     os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    return "{\n@entry:\n  " + stmt->OutputIR() + "}\n";
   }
 };
 
@@ -89,5 +106,8 @@ public:
     os << "number: " << number << std::endl;
     print_indent(os, indent);
     os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    return "ret " + std::to_string(number) + "\n";
   }
 };
