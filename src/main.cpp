@@ -5,6 +5,7 @@
 #include <fstream>
 #include <cassert>
 #include "ast.hpp"
+#include "codegen.hpp"
 
 using namespace std;
 
@@ -28,9 +29,15 @@ int main(int argc, const char *argv[]) {
   if (std::string(mode) == "-koopa") {
     // cout << ast << endl;
     outfile << ast->OutputIR() << endl;
+  } 
+  else if (std::string(mode) == "-riscv") {
+    // cout << ast << endl;
+    CodeGen codegen(ast);
+    outfile << codegen.OutputASM() << endl;
   } else {
     assert(0);
   }
+  
 
   return 0;
 

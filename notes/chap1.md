@@ -42,3 +42,19 @@ Type ::= "int" | "long";
 ```
 可以表示类似 `int param`, `int x, long y, int z` 这样的参数列表.
 
+## 在 Flex 和 Bison 的实现
+
+目前的理解是，我们通过 Flex 定义字符串匹配来捕获，在 Bison 中实现 EBNF 定义的逻辑
+
+
+```koopa
+fun @main(): i32 {  // main 函数的定义 
+// fun 对应 FuncDef
+// main 对应 IDENT
+// FuncType 对应 i32
+%entry:             // 入口基本块
+// 对应 Block
+  ret 0             // return 0
+  // 对应 Stmt 和里面的 Number
+}
+```
