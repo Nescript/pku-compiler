@@ -1,16 +1,34 @@
 #pragma once
-
 #include <endian.h>
 #include <memory>
 #include <iostream>
 #include <ostream>
 #include <string>
+#include <sstream>
 
 inline void print_indent(std::ostream& os, int indent) {
   for (int i = 0; i < indent; ++i) {
     os << "  ";
   }
 }
+
+class ASTContext {
+public:
+    // 使用 C++17 的 inline static 在类内直接初始化，防止多重包含时的链接冲突
+    inline static int reg_counter = 0;
+    inline static std::stringstream ir_buffer;
+    
+    // 分配并返回一个新的寄存器名字，如 "%0", "%1"
+    static std::string NewReg() {
+        return "%" + std::to_string(reg_counter++);
+    }
+    // 重置状态（用于新文件解析）
+    static void Reset() {
+        reg_counter = 0;
+        ir_buffer.str("");
+        ir_buffer.clear();
+    }
+};
 
 class BaseAST {
 public:
@@ -36,7 +54,9 @@ public:
     os << "}" << std::endl;
   }
   std::string OutputIR() override {
-    return func_def->OutputIR();
+    ASTContext::Reset();
+    func_def->OutputIR();
+    return ASTContext::ir_buffer.str();
   }
 
 };
@@ -59,7 +79,11 @@ public:
     os << "}" << std::endl;
   }
   std::string OutputIR() override {
-    return "fun @" + ident + "(): " + func_type->OutputIR() + block->OutputIR();
+    std::string type_str = func_type->OutputIR();
+    ASTContext::ir_buffer << "fun @" << ident << "(): " << type_str << " {\n";
+    block->OutputIR();
+    ASTContext::ir_buffer << "}\n";
+    return ""; 
   }
 };
 
@@ -75,7 +99,7 @@ public:
     os << "}" << std::endl;
   }
   std::string OutputIR() override {
-    if (*type == "int") return "i32 "; // 要思考空格的位置
+    if (*type == "int") return "i32"; // 要思考空格的位置
     else return "UNDEFINE TYPE"; 
   }
 };
@@ -91,23 +115,81 @@ public:
     os << "}" << std::endl;
   }
   std::string OutputIR() override {
-    return "{\n@entry:\n  " + stmt->OutputIR() + "}\n";
+    ASTContext::ir_buffer << "@entry:\n";
+    stmt->OutputIR();
+    return "";
   }
 };
 
 class StmtAST : public BaseAST {
 public:
-  int number;
+  std::unique_ptr<BaseAST> exp;
   // 这里是int还是别的longlong呢？要取决于语言的定义
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
     os << "StmtAST { " << std::endl;
-    print_indent(os, indent + 1);
-    os << "number: " << number << std::endl;
+    exp->Dump(os, indent + 1);
     print_indent(os, indent);
     os << "}" << std::endl;
   }
   std::string OutputIR() override {
-    return "ret " + std::to_string(number) + "\n";
+    std::string exp_name = exp->OutputIR(); 
+    ASTContext::ir_buffer << "  ret " << exp_name << "\n";
+    return "";
   }
 };
+
+class UnaryExpAST : public BaseAST {
+public:
+  std::unique_ptr<std::string> unary_op;
+  std::unique_ptr<BaseAST> unary_exp;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "UnaryExpAST {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "unary_op: " << *unary_op << std::endl;
+    unary_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string exp_name = unary_exp->OutputIR();
+    if (*unary_op == "+") {
+      return exp_name;
+    }
+    if (*unary_op == "-") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = sub 0, " << exp_name << "\n";
+      return reg;
+    }
+    if (*unary_op == "!") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = eq " << exp_name << ", 0\n";
+      return reg;
+    }
+  }
+};
+
+class numberAST : public BaseAST {
+public:
+  int value;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "numberAST { " << std::endl;
+    print_indent(os, indent + 1);
+    os << "value: " << value << std::endl;
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    return std::to_string(value);
+  }
+};
+
+
+// 我们应该弄一个临时寄存器计数器，用来给寄存器命名。
+// 对UnaryExp, 他会调用下一级的outputIR
+// 下一级的outputIR要么是number,要么是另一层UnaryExp
+
+// 所以我们下一级outputIR应该返回一个字符串来给他操作，要么是数字，要么是一个临时寄存器
+// 这个字符串应该如何处理呢？考虑同一时间只有一个东西要outputIR,可以考虑建立一个静态成员

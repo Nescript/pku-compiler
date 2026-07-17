@@ -1,3 +1,4 @@
+%define parse.trace
 %code requires {
   #include <memory>
   #include <string>
@@ -36,24 +37,14 @@ using namespace std;
 
 // 
 %token INT RETURN
-%token <str_val> IDENT
+%token <str_val> IDENT UnaryOp
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt
-%type <int_val> Number
-
-// 这里写一些 Flex/Bison 相关的定义
-// 对于 Flex, 这里可以定义某个符号对应的正则表达式
-// 对于 Bison, 这里可以定义终结符/非终结符的类型
+%type <ast_val> FuncDef FuncType Block Stmt PrimaryExp UnaryExp Exp Number
 
 %%
 
-// 开始符, CompUnit ::= FuncDef, 大括号后声明了解析完成后 parser 要做的事情
-// 之前我们定义了 FuncDef 会返回一个 str_val, 也就是字符串指针
-// 而 parser 一旦解析完 CompUnit, 就说明所有的 token 都被解析了, 即解析结束了
-// 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
-// $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
 CompUnit
   : FuncDef {
     auto comp_unit = make_unique<CompUnitAST>();
@@ -89,21 +80,47 @@ Block
   ;
 
 Stmt
-  : RETURN Number ';' {
+  : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->number = $2;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;
 
 Number
   : INT_CONST {
+    auto ast = new numberAST();
+    ast->value = $1;
+    $$ = ast;
+  }
+  ;
+
+UnaryExp
+  : PrimaryExp {
+    $$ = $1;
+  }
+  | UnaryOp UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->unary_op = unique_ptr<string>($1);
+    ast->unary_exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+Exp
+  : UnaryExp {
     $$ = $1;
   }
   ;
-// 这里写 Flex/Bison 的规则描述
-// 对于 Flex, 这里写的是 lexer 扫描到某个 token 后做的操作
-// 对于 Bison, 这里写的是 parser 遇到某种语法规则后做的操作
+
+PrimaryExp 
+  : '(' Exp ')' {
+    $$ = $2;
+  }
+  | Number {
+    $$ = $1;
+  }
+  ;
 
 %%
 

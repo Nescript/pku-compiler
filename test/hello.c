@@ -6,7 +6,6 @@
  * /*
  */
 
-int main()
-{
-    return 0;
+int main() {
+  return +(--!6);  // 看起来像个颜文字
 }
