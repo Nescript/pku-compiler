@@ -1,3 +1,3 @@
 int main() {
-  return !1 + 6 / 2 - 100 + 32;
+  return 1 || 2;
 }

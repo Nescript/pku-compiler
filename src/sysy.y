@@ -39,10 +39,16 @@ using namespace std;
 %token INT RETURN
 %token <str_val> IDENT
 %token <int_val> INT_CONST
+%token LE   // <=
+%token GE   // >=
+%token EQ   // ==
+%token NE   // !=
+%token AND  // &&
+%token OR   // ||
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp UnaryExp Exp Number
-%type <ast_val> MulExp AddExp
+%type <ast_val> MulExp AddExp RelExp EqExp LAndExp LOrExp
 %%
 
 CompUnit
@@ -120,7 +126,7 @@ UnaryExp
   ;
 
 Exp
-  : AddExp {
+  : LOrExp {
     $$ = $1;
   }
   ;
@@ -181,6 +187,85 @@ AddExp
   }
   ;
 
+RelExp
+  : AddExp {
+    $$ = $1;
+  }
+  | RelExp '<' AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<BaseAST>($1);
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    ast->op = "<";
+    $$ = ast;
+  }
+  | RelExp '>' AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<BaseAST>($1);
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    ast->op = ">";
+    $$ = ast;
+  }
+  | RelExp LE AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<BaseAST>($1);
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    ast->op = "<=";
+    $$ = ast;
+  }
+  | RelExp GE AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<BaseAST>($1);
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    ast->op = ">=";
+    $$ = ast;
+  }
+  ;
+
+EqExp
+  : RelExp {
+    $$ = $1;
+  }
+  | EqExp EQ RelExp {
+    auto ast = new EqExp();
+    ast->eq_exp = unique_ptr<BaseAST>($1);
+    ast->rel_exp = unique_ptr<BaseAST>($3);
+    ast->op = "==";
+    $$ = ast;
+  }
+  | EqExp NE RelExp {
+    auto ast = new EqExp();
+    ast->eq_exp = unique_ptr<BaseAST>($1);
+    ast->rel_exp = unique_ptr<BaseAST>($3);
+    ast->op = "!=";
+    $$ = ast;
+  }
+  ;
+
+LAndExp
+  : EqExp {
+    $$ = $1;
+  }
+  | LAndExp AND EqExp {
+    auto ast = new LAndExp();
+    ast->land_exp = unique_ptr<BaseAST>($1);
+    ast->eq_exp = unique_ptr<BaseAST>($3);
+    ast->op = "&&";
+    $$ = ast;
+  }
+  ;
+
+LOrExp
+  : LAndExp {
+    $$ = $1;
+  }
+  | LOrExp OR LAndExp {
+    auto ast = new LOrExp();
+    ast->lor_exp = unique_ptr<BaseAST>($1);
+    ast->land_exp = unique_ptr<BaseAST>($3);
+    ast->op = "||";
+    $$ = ast;
+  }
+  ;
 %%
 
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {

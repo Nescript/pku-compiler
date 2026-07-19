@@ -51,6 +51,13 @@ Hexadecimal   0[xX][0-9a-fA-F]+
                           cerr << "Error: Unclosed comment" << endl;
                           yyterminate();
                       }
-                
+
+"=="                  { return EQ; }
+"!="                  { return NE; }
+"<="                  { return LE; }
+">="                  { return GE; }
+"&&"                  { return AND; }
+"||"                  { return OR; }
+
 .                     { return yytext[0]; }
 %%

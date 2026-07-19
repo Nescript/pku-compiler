@@ -141,7 +141,38 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
       ASM += "  div t2, t0, t1\n";
       break;
     case KOOPA_RBO_MOD:
-      ASM += "  mod t2, t0, t1\n";
+      ASM += "  rem t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_GE:
+      ASM += "  slt t2, t0, t1\n";
+      ASM += "  seqz t2, t2\n";
+      break;
+    case KOOPA_RBO_LE:
+      ASM += "  sgt t2, t0, t1\n";
+      ASM += "  seqz t2, t2\n";
+      break;
+    case KOOPA_RBO_GT:
+      ASM += "  sgt t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_LT:
+      ASM += "  slt t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_NOT_EQ:
+      ASM += "  xor t2, t0, t1\n";
+      ASM += "  snez t2, t2\n";
+      break;
+    case KOOPA_RBO_OR:
+      ASM += "  snez t0, t0\n";
+      ASM += "  snez t1, t1\n";
+      ASM += "  or t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_AND:
+      ASM += "  snez t0, t0\n";
+      ASM += "  snez t1, t1\n";
+      ASM += "  and t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_MUL:
+      ASM += "  mul t2, t0, t1\n";
       break;
     default:
       assert(false);

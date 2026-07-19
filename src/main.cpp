@@ -14,7 +14,7 @@ extern FILE *yyin;
 extern int yyparse(unique_ptr<BaseAST> &ast);
 
 int main(int argc, const char *argv[]) {
-  yydebug = 1;
+  // yydebug = 1;
   assert(argc == 5);
   auto mode = argv[1];
   auto input = argv[2];
@@ -28,7 +28,7 @@ int main(int argc, const char *argv[]) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  cout << ast << endl;
+  // cout << ast << endl;
   ast->OutputIR();
 
   if (std::string(mode) == "-koopa") {

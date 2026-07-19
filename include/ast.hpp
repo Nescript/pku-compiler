@@ -260,6 +260,150 @@ public:
     }
   }
 };
+
+class RelExpAST : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> rel_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> add_exp;
+    void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "RelExp {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "rel_exp: " << std::endl;
+    rel_exp->Dump(os, indent + 1);
+    print_indent(os, indent + 1);
+    os << "op: " << op << std::endl;
+    print_indent(os, indent + 1);
+    os << "add_exp: " << std::endl;
+    add_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string rel_exp_name = rel_exp->OutputIR();
+    std::string add_exp_name = add_exp->OutputIR();
+    if (op == ">") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = gt " << rel_exp_name << ", " << add_exp_name << "\n";
+      return reg;
+    }
+    if (op == "<") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = lt " << rel_exp_name << ", " << add_exp_name << "\n";
+      return reg;
+    }
+    if (op == "<=") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = le " << rel_exp_name << ", " << add_exp_name << "\n";
+      return reg;
+    }
+    if (op == ">=") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = ge " << rel_exp_name << ", " << add_exp_name << "\n";
+      return reg;
+    }
+  }
+};
+
+class EqExp : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> eq_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> rel_exp;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "EqExp {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "eq_exp: " << std::endl;
+    eq_exp->Dump(os, indent + 1);
+    print_indent(os, indent + 1);
+    os << "op: " << op << std::endl;
+    print_indent(os, indent + 1);
+    os << "rel_exp: " << std::endl;
+    rel_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string eq_exp_name = eq_exp->OutputIR();
+    std::string rel_exp_name = rel_exp->OutputIR();
+    if (op == "==") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = eq " << eq_exp_name << ", " << rel_exp_name << "\n";
+      return reg;
+    }
+    if (op == "!=") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = ne " << eq_exp_name << ", " << rel_exp_name << "\n";
+      return reg;
+    }
+  }
+};
+
+class LAndExp : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> land_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> eq_exp;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "LAndExp {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "land_exp: " << std::endl;
+    land_exp->Dump(os, indent + 1);
+    print_indent(os, indent + 1);
+    os << "op: " << op << std::endl;
+    print_indent(os, indent + 1);
+    os << "eq_exp: " << std::endl;
+    eq_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string land_exp_name = land_exp->OutputIR();
+    std::string eq_exp_name = eq_exp->OutputIR();
+    std::string land_exp_reg = ASTContext::NewReg();
+    std::string eq_exp_reg = ASTContext::NewReg();
+    std::string result_reg = ASTContext::NewReg();
+    ASTContext::ir_buffer << "  " << land_exp_reg << " = ne " << land_exp_name << ", " << 0 << "\n";
+    ASTContext::ir_buffer << "  " << eq_exp_reg << " = ne " << eq_exp_name << ", " << 0 << "\n";
+    ASTContext::ir_buffer << "  " << result_reg << " = and " << land_exp_reg << ", " << eq_exp_reg << "\n";
+    return result_reg;
+  }
+};
+
+class LOrExp : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> lor_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> land_exp;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "LOrExp {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "lor_exp: " << std::endl;
+    lor_exp->Dump(os, indent + 1);
+    print_indent(os, indent + 1);
+    os << "op: " << op << std::endl;
+    print_indent(os, indent + 1);
+    os << "land_exp: " << std::endl;
+    land_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string lor_exp_name = lor_exp->OutputIR();
+    std::string land_exp_name = land_exp->OutputIR();
+    std::string lor_exp_reg = ASTContext::NewReg();
+    std::string land_exp_reg = ASTContext::NewReg();
+    std::string result_reg = ASTContext::NewReg();
+    ASTContext::ir_buffer << "  " << lor_exp_reg << " = ne " << lor_exp_name << ", " << 0 << "\n";
+    ASTContext::ir_buffer << "  " << land_exp_reg << " = ne " << land_exp_name << ", " << 0 << "\n";
+    ASTContext::ir_buffer << "  " << result_reg << " = or " << lor_exp_reg << ", " << land_exp_reg << "\n";
+    return result_reg;
+  }
+};
 // 我们应该弄一个临时寄存器计数器，用来给寄存器命名。
 // 对UnaryExp, 他会调用下一级的outputIR
 // 下一级的outputIR要么是number,要么是另一层UnaryExp
