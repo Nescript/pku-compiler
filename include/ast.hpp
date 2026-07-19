@@ -186,7 +186,80 @@ public:
   }
 };
 
+class MulExp : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> unary_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> mul_exp;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "MulExp {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "unary_exp: " << std::endl;
+    unary_exp->Dump(os, indent + 1);
+    print_indent(os, indent + 1);
+    os << "op: " << op << std::endl;
+    print_indent(os, indent + 1);
+    os << "mul_exp: " << std::endl;
+    mul_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string unary_exp_name = unary_exp->OutputIR();
+    std::string mul_exp_name = mul_exp->OutputIR();
+    if (op == "*") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = mul " << mul_exp_name << ", " << unary_exp_name << "\n";
+      return reg;
+    }
+    if (op == "/") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = div " << mul_exp_name << ", " << unary_exp_name << "\n";
+      return reg;
+    }
+    if (op == "%") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = mod " << mul_exp_name << ", " << unary_exp_name << "\n";
+      return reg;
+    }
+  }
+};
 
+class AddExp : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> add_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> mul_exp;
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "AddExp {" << std::endl;
+    print_indent(os, indent + 1);
+    os << "add_exp: " << std::endl;
+    add_exp->Dump(os, indent + 1);
+    print_indent(os, indent + 1);
+    os << "op: " << op << std::endl;
+    print_indent(os, indent + 1);
+    os << "mul_exp: " << std::endl;
+    mul_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}" << std::endl;
+  }
+  std::string OutputIR() override {
+    std::string add_exp_name = add_exp->OutputIR();
+    std::string mul_exp_name = mul_exp->OutputIR();
+    if (op == "+") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = add " << mul_exp_name << ", " << add_exp_name << "\n";
+      return reg;
+    }
+    if (op == "-") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = sub " << mul_exp_name << ", " << add_exp_name << "\n";
+      return reg;
+    }
+  }
+};
 // 我们应该弄一个临时寄存器计数器，用来给寄存器命名。
 // 对UnaryExp, 他会调用下一级的outputIR
 // 下一级的outputIR要么是number,要么是另一层UnaryExp

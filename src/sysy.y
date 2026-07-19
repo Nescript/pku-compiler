@@ -37,12 +37,12 @@ using namespace std;
 
 // 
 %token INT RETURN
-%token <str_val> IDENT UnaryOp
+%token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp UnaryExp Exp Number
-
+%type <ast_val> MulExp AddExp
 %%
 
 CompUnit
@@ -99,16 +99,28 @@ UnaryExp
   : PrimaryExp {
     $$ = $1;
   }
-  | UnaryOp UnaryExp {
+  | '+' UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->unary_op = unique_ptr<string>($1);
+    ast->unary_op = unique_ptr<string>(new string("+"));
+    ast->unary_exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | '-' UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->unary_op = unique_ptr<string>(new string("-"));
+    ast->unary_exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | '!' UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->unary_op = unique_ptr<string>(new string("!"));
     ast->unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;
 
 Exp
-  : UnaryExp {
+  : AddExp {
     $$ = $1;
   }
   ;
@@ -119,6 +131,53 @@ PrimaryExp
   }
   | Number {
     $$ = $1;
+  }
+  ;
+
+MulExp
+  : UnaryExp {
+    $$ = $1;
+  }
+  | MulExp '*' UnaryExp {
+    auto ast = new MulExp();
+    ast->unary_exp = unique_ptr<BaseAST>($3);
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->op = "*";
+    $$ = ast;
+  }
+  | MulExp '/' UnaryExp {
+    auto ast = new MulExp();
+    ast->unary_exp = unique_ptr<BaseAST>($3);
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->op = "/";
+    $$ = ast;
+  }
+  | MulExp '%' UnaryExp {
+    auto ast = new MulExp();
+    ast->unary_exp = unique_ptr<BaseAST>($3);
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->op = "%";
+    $$ = ast;
+  }
+  ;
+
+AddExp
+  : MulExp {
+    $$ = $1;
+  }
+  | AddExp '+' MulExp {
+    auto ast = new AddExp();
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->op = "+";
+    $$ = ast;
+  }
+  | AddExp '-' MulExp {
+    auto ast = new AddExp();
+    ast->add_exp = unique_ptr<BaseAST>($3);
+    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->op = "-";
+    $$ = ast;
   }
   ;
 

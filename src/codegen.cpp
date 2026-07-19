@@ -134,6 +134,15 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
     case KOOPA_RBO_SUB:
       ASM += "  sub t2, t0, t1\n";
       break;
+    case KOOPA_RBO_ADD:
+      ASM += "  add t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_DIV:
+      ASM += "  div t2, t0, t1\n";
+      break;
+    case KOOPA_RBO_MOD:
+      ASM += "  mod t2, t0, t1\n";
+      break;
     default:
       assert(false);
   }
