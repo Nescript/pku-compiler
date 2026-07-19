@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include "koopa.h"
 #include <string>
 
 std::string CodeGen::OutputASM() {
@@ -59,8 +60,24 @@ void CodeGen::Visit(const koopa_raw_slice_t &slice) {
 
 // 访问函数
 void CodeGen::Visit(const koopa_raw_function_t &func) {
+  for (size_t i = 0; i < func->bbs.len; ++i) {
+    auto bb = reinterpret_cast<koopa_raw_basic_block_t>(func->bbs.buffer[i]);
+    for (size_t j = 0; j < bb->insts.len; ++j) {
+      auto inst = reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
+      if (inst->ty->tag != KOOPA_RTT_UNIT) {
+        stack_map[inst] = offset;
+        offset += 4;
+      }
+    }
+  }
+  total_stack_size = (offset + 15) & ~15;
+
   ASM += "  .globl " + std::string(func->name + 1) + "\n";
   ASM += std::string(func->name + 1) + ":\n";
+  if (total_stack_size > 0) {
+    ASM += "  addi sp, sp, -" + std::to_string(total_stack_size) + "\n";
+  }
+
   // 访问所有基本块
   Visit(func->bbs);
 }
@@ -75,6 +92,7 @@ void CodeGen::Visit(const koopa_raw_basic_block_t &bb) {
 
 // 访问指令
 void CodeGen::Visit(const koopa_raw_value_t &value) {
+  current_value = value;
   // 根据指令类型判断后续需要如何访问
   const auto &kind = value->kind;
   switch (kind.tag) {
@@ -85,6 +103,9 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     case KOOPA_RVT_INTEGER:
       // 访问 integer 指令
       Visit(kind.data.integer);
+      break;
+    case KOOPA_RVT_BINARY:
+      Visit(kind.data.binary);
       break;
     default:
       // 其他类型暂时遇不到
@@ -97,10 +118,35 @@ void CodeGen::Visit(const koopa_raw_integer_t &integer) {
   // 处理 integer 指令
 }
 
+void CodeGen::Visit(const koopa_raw_binary_t &binary) {
+  const auto &op = binary.op;
+  const auto &lhs = binary.lhs;
+  const auto &rhs = binary.rhs;
+
+  LoadValueToReg(lhs, "t0");
+  LoadValueToReg(rhs, "t1");
+
+  switch (op) {
+    case KOOPA_RBO_EQ:
+      ASM += "  xor t2, t0, t1\n";
+      ASM += "  seqz t2, t2\n";
+      break;
+    case KOOPA_RBO_SUB:
+      ASM += "  sub t2, t0, t1\n";
+      break;
+    default:
+      assert(false);
+  }
+  ASM += "  sw t2, " + GetStackLoc(current_value) + "\n";
+  // 处理二元运算指令
+}
+
 void CodeGen::Visit(const koopa_raw_return_t &ret) {
-  ASM += "  li a0, ";
-  Visit(ret.value);
-  ASM += "\n  ret";
+  LoadValueToReg(ret.value, "a0");
+  if (total_stack_size > 0) {
+    ASM += "  addi sp, sp, " + std::to_string(total_stack_size) + "\n";
+  }
+  ASM += "  ret";
 }
 
 CodeGen::~CodeGen() {}
