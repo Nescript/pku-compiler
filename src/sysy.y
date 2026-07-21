@@ -146,23 +146,23 @@ MulExp
   }
   | MulExp '*' UnaryExp {
     auto ast = new MulExp();
-    ast->unary_exp = unique_ptr<BaseAST>($3);
     ast->mul_exp = unique_ptr<BaseAST>($1);
     ast->op = "*";
+    ast->unary_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | MulExp '/' UnaryExp {
     auto ast = new MulExp();
-    ast->unary_exp = unique_ptr<BaseAST>($3);
     ast->mul_exp = unique_ptr<BaseAST>($1);
     ast->op = "/";
+    ast->unary_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | MulExp '%' UnaryExp {
     auto ast = new MulExp();
-    ast->unary_exp = unique_ptr<BaseAST>($3);
     ast->mul_exp = unique_ptr<BaseAST>($1);
     ast->op = "%";
+    ast->unary_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -173,16 +173,16 @@ AddExp
   }
   | AddExp '+' MulExp {
     auto ast = new AddExp();
-    ast->add_exp = unique_ptr<BaseAST>($3);
-    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->add_exp = unique_ptr<BaseAST>($1);
     ast->op = "+";
+    ast->mul_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | AddExp '-' MulExp {
     auto ast = new AddExp();
-    ast->add_exp = unique_ptr<BaseAST>($3);
-    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->add_exp = unique_ptr<BaseAST>($1);
     ast->op = "-";
+    ast->mul_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -194,29 +194,29 @@ RelExp
   | RelExp '<' AddExp {
     auto ast = new RelExpAST();
     ast->rel_exp = unique_ptr<BaseAST>($1);
-    ast->add_exp = unique_ptr<BaseAST>($3);
     ast->op = "<";
+    ast->add_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | RelExp '>' AddExp {
     auto ast = new RelExpAST();
     ast->rel_exp = unique_ptr<BaseAST>($1);
-    ast->add_exp = unique_ptr<BaseAST>($3);
     ast->op = ">";
+    ast->add_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | RelExp LE AddExp {
     auto ast = new RelExpAST();
     ast->rel_exp = unique_ptr<BaseAST>($1);
-    ast->add_exp = unique_ptr<BaseAST>($3);
     ast->op = "<=";
+    ast->add_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | RelExp GE AddExp {
     auto ast = new RelExpAST();
     ast->rel_exp = unique_ptr<BaseAST>($1);
-    ast->add_exp = unique_ptr<BaseAST>($3);
     ast->op = ">=";
+    ast->add_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -228,15 +228,15 @@ EqExp
   | EqExp EQ RelExp {
     auto ast = new EqExp();
     ast->eq_exp = unique_ptr<BaseAST>($1);
-    ast->rel_exp = unique_ptr<BaseAST>($3);
     ast->op = "==";
+    ast->rel_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | EqExp NE RelExp {
     auto ast = new EqExp();
     ast->eq_exp = unique_ptr<BaseAST>($1);
-    ast->rel_exp = unique_ptr<BaseAST>($3);
     ast->op = "!=";
+    ast->rel_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -248,8 +248,8 @@ LAndExp
   | LAndExp AND EqExp {
     auto ast = new LAndExp();
     ast->land_exp = unique_ptr<BaseAST>($1);
-    ast->eq_exp = unique_ptr<BaseAST>($3);
     ast->op = "&&";
+    ast->eq_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -261,8 +261,8 @@ LOrExp
   | LOrExp OR LAndExp {
     auto ast = new LOrExp();
     ast->lor_exp = unique_ptr<BaseAST>($1);
-    ast->land_exp = unique_ptr<BaseAST>($3);
     ast->op = "||";
+    ast->land_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;

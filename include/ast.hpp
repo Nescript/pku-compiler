@@ -188,26 +188,26 @@ public:
 
 class MulExp : public BaseAST {
 public:
-  std::unique_ptr<BaseAST> unary_exp;
-  std::string op;
   std::unique_ptr<BaseAST> mul_exp;
+  std::string op;
+  std::unique_ptr<BaseAST> unary_exp;
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
     os << "MulExp {" << std::endl;
     print_indent(os, indent + 1);
-    os << "unary_exp: " << std::endl;
-    unary_exp->Dump(os, indent + 1);
+    os << "mul_exp: " << std::endl;
+    mul_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
     os << "op: " << op << std::endl;
     print_indent(os, indent + 1);
-    os << "mul_exp: " << std::endl;
-    mul_exp->Dump(os, indent + 1);
+    os << "unary_exp: " << std::endl;
+    unary_exp->Dump(os, indent + 1);
     print_indent(os, indent);
     os << "}" << std::endl;
   }
   std::string OutputIR() override {
-    std::string unary_exp_name = unary_exp->OutputIR();
     std::string mul_exp_name = mul_exp->OutputIR();
+    std::string unary_exp_name = unary_exp->OutputIR();
     if (op == "*") {
       std::string reg = ASTContext::NewReg();
       ASTContext::ir_buffer << "  " << reg << " = mul " << mul_exp_name << ", " << unary_exp_name << "\n";
@@ -223,6 +223,7 @@ public:
       ASTContext::ir_buffer << "  " << reg << " = mod " << mul_exp_name << ", " << unary_exp_name << "\n";
       return reg;
     }
+    return "";
   }
 };
 
@@ -250,14 +251,15 @@ public:
     std::string mul_exp_name = mul_exp->OutputIR();
     if (op == "+") {
       std::string reg = ASTContext::NewReg();
-      ASTContext::ir_buffer << "  " << reg << " = add " << mul_exp_name << ", " << add_exp_name << "\n";
+      ASTContext::ir_buffer << "  " << reg << " = add " << add_exp_name << ", " << mul_exp_name << "\n";
       return reg;
     }
     if (op == "-") {
       std::string reg = ASTContext::NewReg();
-      ASTContext::ir_buffer << "  " << reg << " = sub " << mul_exp_name << ", " << add_exp_name << "\n";
+      ASTContext::ir_buffer << "  " << reg << " = sub " << add_exp_name << ", " << mul_exp_name << "\n";
       return reg;
     }
+    return "";
   }
 };
 
@@ -266,7 +268,7 @@ public:
   std::unique_ptr<BaseAST> rel_exp;
   std::string op;
   std::unique_ptr<BaseAST> add_exp;
-    void Dump(std::ostream& os, int indent) const override {
+  void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
     os << "RelExp {" << std::endl;
     print_indent(os, indent + 1);
@@ -303,6 +305,7 @@ public:
       ASTContext::ir_buffer << "  " << reg << " = ge " << rel_exp_name << ", " << add_exp_name << "\n";
       return reg;
     }
+    return "";
   }
 };
 
@@ -338,6 +341,7 @@ public:
       ASTContext::ir_buffer << "  " << reg << " = ne " << eq_exp_name << ", " << rel_exp_name << "\n";
       return reg;
     }
+    return "";
   }
 };
 
