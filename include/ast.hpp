@@ -1,10 +1,13 @@
 #pragma once
-#include <endian.h>
-#include <memory>
+#include <cassert>
 #include <iostream>
+#include <memory>
+#include <optional>
 #include <ostream>
-#include <string>
 #include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 inline void print_indent(std::ostream& os, int indent) {
   for (int i = 0; i < indent; ++i) {
@@ -14,20 +17,23 @@ inline void print_indent(std::ostream& os, int indent) {
 
 class ASTContext {
 public:
-    // 使用 C++17 的 inline static 在类内直接初始化，防止多重包含时的链接冲突
-    inline static int reg_counter = 0;
-    inline static std::stringstream ir_buffer;
-    
-    // 分配并返回一个新的寄存器名字，如 "%0", "%1"
-    static std::string NewReg() {
-        return "%" + std::to_string(reg_counter++);
-    }
-    // 重置状态（用于新文件解析）
-    static void Reset() {
-        reg_counter = 0;
-        ir_buffer.str("");
-        ir_buffer.clear();
-    }
+  inline static int reg_counter = 0;
+  inline static std::stringstream ir_buffer;
+  // 全局符号表：变量/常量名 -> 编译期常数值
+  inline static std::unordered_map<std::string, int> symbol_table;
+
+  // 分配并返回一个新的寄存器名字，如 "%0", "%1"
+  static std::string NewReg() {
+    return "%" + std::to_string(reg_counter++);
+  }
+
+  // 重置状态
+  static void Reset() {
+    reg_counter = 0;
+    ir_buffer.str("");
+    ir_buffer.clear();
+    symbol_table.clear();
+  }
 };
 
 class BaseAST {
@@ -35,6 +41,7 @@ public:
   virtual ~BaseAST() = default;
   virtual void Dump(std::ostream& os, int indent) const = 0;
   virtual std::string OutputIR() = 0;
+  virtual std::optional<int> CalcValue() = 0;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const std::unique_ptr<BaseAST>& ast) {
@@ -46,127 +53,150 @@ inline std::ostream& operator<<(std::ostream& os, const std::unique_ptr<BaseAST>
 class CompUnitAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> func_def;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "CompUnitAST { " << std::endl;
-    func_def->Dump(os, indent + 1);
+    os << "CompUnitAST {\n";
+    if (func_def) func_def->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
     ASTContext::Reset();
-    func_def->OutputIR();
+    if (func_def) func_def->OutputIR();
     return ASTContext::ir_buffer.str();
   }
 
+  std::optional<int> CalcValue() override {
+    assert(false && "CompUnitAST is not an expression, cannot calculate value");
+    return std::nullopt;
+  }
 };
 
 class FuncDefAST : public BaseAST {
 public:
-  
   std::unique_ptr<BaseAST> func_type;
   std::string ident;
   std::unique_ptr<BaseAST> block;
-  // std::string IR;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "FuncDefAST { " << std::endl;
-    func_type->Dump(os, indent + 1);
+    os << "FuncDefAST {\n";
+    if (func_type) func_type->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "ident: " << ident << std::endl;
-    block->Dump(os, indent + 1);
+    os << "ident: " << ident << "\n";
+    if (block) block->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string type_str = func_type->OutputIR();
+    std::string type_str = func_type ? func_type->OutputIR() : "i32";
     ASTContext::ir_buffer << "fun @" << ident << "(): " << type_str << " {\n";
-    block->OutputIR();
+    if (block) block->OutputIR();
     ASTContext::ir_buffer << "}\n";
-    return ""; 
+    return "";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "FuncDefAST is not an expression, cannot calculate value");
+    return std::nullopt;
   }
 };
 
 class FuncTypeAST : public BaseAST {
 public:
-  std::unique_ptr<std::string> type;
+  std::string type;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "FuncTypeAST { " << std::endl;
+    os << "FuncTypeAST {\n";
     print_indent(os, indent + 1);
-    os << "type: " << *type << std::endl;
+    os << "type: " << type << "\n";
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    if (*type == "int") return "i32"; // 要思考空格的位置
-    else return "UNDEFINE TYPE"; 
+    if (type == "int") return "i32";
+    return "UNDEFINE TYPE";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "FuncTypeAST is not an expression, cannot calculate value");
+    return std::nullopt;
   }
 };
 
 class BlockAST : public BaseAST {
 public:
-  std::unique_ptr<BaseAST> stmt;
+  std::unique_ptr<BaseAST> block_item_list;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "BlockAST { " << std::endl;
-    stmt->Dump(os, indent + 1);
+    os << "BlockAST {\n";
+    if (block_item_list) block_item_list->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
     ASTContext::ir_buffer << "@entry:\n";
-    stmt->OutputIR();
+    if (block_item_list) block_item_list->OutputIR();
     return "";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "BlockAST is not an expression, cannot calculate value");
+    return std::nullopt;
+  }
+};
+
+class BlockItem_listAST : public BaseAST {
+public:
+  std::vector<std::unique_ptr<BaseAST>> block_item_vec;
+
+  void Dump(std::ostream& os, int indent) const override {
+    for (const auto& item : block_item_vec) {
+      if (item) item->Dump(os, indent);
+    }
+  }
+
+  std::string OutputIR() override {
+    for (const auto& item : block_item_vec) {
+      if (item) item->OutputIR();
+    }
+    return "";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "BlockItem_listAST is not an expression, cannot calculate value");
+    return std::nullopt;
   }
 };
 
 class StmtAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> exp;
-  // 这里是int还是别的longlong呢？要取决于语言的定义
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "StmtAST { " << std::endl;
-    exp->Dump(os, indent + 1);
+    os << "StmtAST {\n";
+    if (exp) exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string exp_name = exp->OutputIR(); 
+    std::string exp_name = exp ? exp->OutputIR() : "0";
     ASTContext::ir_buffer << "  ret " << exp_name << "\n";
     return "";
   }
-};
 
-class UnaryExpAST : public BaseAST {
-public:
-  std::unique_ptr<std::string> unary_op;
-  std::unique_ptr<BaseAST> unary_exp;
-  void Dump(std::ostream& os, int indent) const override {
-    print_indent(os, indent);
-    os << "UnaryExpAST {" << std::endl;
-    print_indent(os, indent + 1);
-    os << "unary_op: " << *unary_op << std::endl;
-    unary_exp->Dump(os, indent + 1);
-    print_indent(os, indent);
-    os << "}" << std::endl;
-  }
-  std::string OutputIR() override {
-    std::string exp_name = unary_exp->OutputIR();
-    if (*unary_op == "+") {
-      return exp_name;
-    }
-    if (*unary_op == "-") {
-      std::string reg = ASTContext::NewReg();
-      ASTContext::ir_buffer << "  " << reg << " = sub 0, " << exp_name << "\n";
-      return reg;
-    }
-    if (*unary_op == "!") {
-      std::string reg = ASTContext::NewReg();
-      ASTContext::ir_buffer << "  " << reg << " = eq " << exp_name << ", 0\n";
-      return reg;
-    }
+  std::optional<int> CalcValue() override {
+    assert(false && "StmtAST is not an expression, cannot calculate value");
+    return std::nullopt;
   }
 };
 
@@ -175,14 +205,94 @@ public:
   int value;
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "numberAST { " << std::endl;
+    os << "numberAST {\n";
     print_indent(os, indent + 1);
-    os << "value: " << value << std::endl;
+    os << "value: " << value << "\n";
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
     return std::to_string(value);
+  }
+
+  std::optional<int> CalcValue() override {
+    return value;
+  }
+};
+
+class LValAST : public BaseAST {
+public:
+  std::string ident;
+
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "LValAST {\n";
+    print_indent(os, indent + 1);
+    os << "ident: " << ident << "\n";
+    print_indent(os, indent);
+    os << "}\n";
+  }
+
+  std::string OutputIR() override {
+    auto val = CalcValue();
+    if (val.has_value()) {
+      return std::to_string(val.value());
+    }
+    return ident;
+  }
+
+  std::optional<int> CalcValue() override {
+    auto it = ASTContext::symbol_table.find(ident);
+    if (it != ASTContext::symbol_table.end()) {
+      return it->second;
+    }
+    return std::nullopt;
+  }
+};
+
+class UnaryExpAST : public BaseAST {
+public:
+  std::string unary_op;
+  std::unique_ptr<BaseAST> unary_exp;
+
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "UnaryExpAST {\n";
+    print_indent(os, indent + 1);
+    os << "unary_op: " << unary_op << "\n";
+    if (unary_exp) unary_exp->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}\n";
+  }
+
+  std::string OutputIR() override {
+    std::string exp_name = unary_exp ? unary_exp->OutputIR() : "0";
+    if (unary_op == "+") {
+      return exp_name;
+    }
+    if (unary_op == "-") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = sub 0, " << exp_name << "\n";
+      return reg;
+    }
+    if (unary_op == "!") {
+      std::string reg = ASTContext::NewReg();
+      ASTContext::ir_buffer << "  " << reg << " = eq " << exp_name << ", 0\n";
+      return reg;
+    }
+    return exp_name;
+  }
+
+  std::optional<int> CalcValue() override {
+    if (!unary_exp) return std::nullopt;
+    auto val = unary_exp->CalcValue();
+    if (!val.has_value()) return std::nullopt;
+
+    if (unary_op == "+") return val.value();
+    if (unary_op == "-") return -val.value();
+    if (unary_op == "!") return !val.value();
+    return std::nullopt;
   }
 };
 
@@ -191,39 +301,50 @@ public:
   std::unique_ptr<BaseAST> mul_exp;
   std::string op;
   std::unique_ptr<BaseAST> unary_exp;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "MulExp {" << std::endl;
+    os << "MulExp {\n";
+    if (mul_exp) mul_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "mul_exp: " << std::endl;
-    mul_exp->Dump(os, indent + 1);
-    print_indent(os, indent + 1);
-    os << "op: " << op << std::endl;
-    print_indent(os, indent + 1);
-    os << "unary_exp: " << std::endl;
-    unary_exp->Dump(os, indent + 1);
+    os << "op: " << op << "\n";
+    if (unary_exp) unary_exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string mul_exp_name = mul_exp->OutputIR();
-    std::string unary_exp_name = unary_exp->OutputIR();
+    std::string mul_exp_name = mul_exp ? mul_exp->OutputIR() : "0";
+    std::string unary_exp_name = unary_exp ? unary_exp->OutputIR() : "0";
+    std::string reg = ASTContext::NewReg();
+
     if (op == "*") {
-      std::string reg = ASTContext::NewReg();
       ASTContext::ir_buffer << "  " << reg << " = mul " << mul_exp_name << ", " << unary_exp_name << "\n";
-      return reg;
-    }
-    if (op == "/") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == "/") {
       ASTContext::ir_buffer << "  " << reg << " = div " << mul_exp_name << ", " << unary_exp_name << "\n";
-      return reg;
-    }
-    if (op == "%") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == "%") {
       ASTContext::ir_buffer << "  " << reg << " = mod " << mul_exp_name << ", " << unary_exp_name << "\n";
-      return reg;
     }
-    return "";
+    return reg;
+  }
+
+  std::optional<int> CalcValue() override {
+    if (!mul_exp || !unary_exp) return std::nullopt;
+    auto lhs = mul_exp->CalcValue();
+    auto rhs = unary_exp->CalcValue();
+
+    if (lhs.has_value() && rhs.has_value()) {
+      if (op == "*") return lhs.value() * rhs.value();
+      if (op == "/") {
+        assert(rhs.value() != 0 && "Division by zero in constant expression");
+        return lhs.value() / rhs.value();
+      }
+      if (op == "%") {
+        assert(rhs.value() != 0 && "Modulo by zero in constant expression");
+        return lhs.value() % rhs.value();
+      }
+    }
+    return std::nullopt;
   }
 };
 
@@ -232,34 +353,41 @@ public:
   std::unique_ptr<BaseAST> add_exp;
   std::string op;
   std::unique_ptr<BaseAST> mul_exp;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "AddExp {" << std::endl;
+    os << "AddExp {\n";
+    if (add_exp) add_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "add_exp: " << std::endl;
-    add_exp->Dump(os, indent + 1);
-    print_indent(os, indent + 1);
-    os << "op: " << op << std::endl;
-    print_indent(os, indent + 1);
-    os << "mul_exp: " << std::endl;
-    mul_exp->Dump(os, indent + 1);
+    os << "op: " << op << "\n";
+    if (mul_exp) mul_exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string add_exp_name = add_exp->OutputIR();
-    std::string mul_exp_name = mul_exp->OutputIR();
+    std::string add_exp_name = add_exp ? add_exp->OutputIR() : "0";
+    std::string mul_exp_name = mul_exp ? mul_exp->OutputIR() : "0";
+    std::string reg = ASTContext::NewReg();
+
     if (op == "+") {
-      std::string reg = ASTContext::NewReg();
       ASTContext::ir_buffer << "  " << reg << " = add " << add_exp_name << ", " << mul_exp_name << "\n";
-      return reg;
-    }
-    if (op == "-") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == "-") {
       ASTContext::ir_buffer << "  " << reg << " = sub " << add_exp_name << ", " << mul_exp_name << "\n";
-      return reg;
     }
-    return "";
+    return reg;
+  }
+
+  std::optional<int> CalcValue() override {
+    if (!add_exp || !mul_exp) return std::nullopt;
+    auto lhs = add_exp->CalcValue();
+    auto rhs = mul_exp->CalcValue();
+
+    if (lhs.has_value() && rhs.has_value()) {
+      if (op == "+") return lhs.value() + rhs.value();
+      if (op == "-") return lhs.value() - rhs.value();
+    }
+    return std::nullopt;
   }
 };
 
@@ -268,149 +396,277 @@ public:
   std::unique_ptr<BaseAST> rel_exp;
   std::string op;
   std::unique_ptr<BaseAST> add_exp;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "RelExp {" << std::endl;
+    os << "RelExp {\n";
+    if (rel_exp) rel_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "rel_exp: " << std::endl;
-    rel_exp->Dump(os, indent + 1);
-    print_indent(os, indent + 1);
-    os << "op: " << op << std::endl;
-    print_indent(os, indent + 1);
-    os << "add_exp: " << std::endl;
-    add_exp->Dump(os, indent + 1);
+    os << "op: " << op << "\n";
+    if (add_exp) add_exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string rel_exp_name = rel_exp->OutputIR();
-    std::string add_exp_name = add_exp->OutputIR();
+    std::string rel_exp_name = rel_exp ? rel_exp->OutputIR() : "0";
+    std::string add_exp_name = add_exp ? add_exp->OutputIR() : "0";
+    std::string reg = ASTContext::NewReg();
+
     if (op == ">") {
-      std::string reg = ASTContext::NewReg();
       ASTContext::ir_buffer << "  " << reg << " = gt " << rel_exp_name << ", " << add_exp_name << "\n";
-      return reg;
-    }
-    if (op == "<") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == "<") {
       ASTContext::ir_buffer << "  " << reg << " = lt " << rel_exp_name << ", " << add_exp_name << "\n";
-      return reg;
-    }
-    if (op == "<=") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == "<=") {
       ASTContext::ir_buffer << "  " << reg << " = le " << rel_exp_name << ", " << add_exp_name << "\n";
-      return reg;
-    }
-    if (op == ">=") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == ">=") {
       ASTContext::ir_buffer << "  " << reg << " = ge " << rel_exp_name << ", " << add_exp_name << "\n";
-      return reg;
     }
-    return "";
+    return reg;
+  }
+
+  std::optional<int> CalcValue() override {
+    if (!rel_exp || !add_exp) return std::nullopt;
+    auto lhs = rel_exp->CalcValue();
+    auto rhs = add_exp->CalcValue();
+
+    if (lhs.has_value() && rhs.has_value()) {
+      if (op == ">") return lhs.value() > rhs.value();
+      if (op == "<") return lhs.value() < rhs.value();
+      if (op == "<=") return lhs.value() <= rhs.value();
+      if (op == ">=") return lhs.value() >= rhs.value();
+    }
+    return std::nullopt;
   }
 };
 
-class EqExp : public BaseAST {
+class EqExpAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> eq_exp;
   std::string op;
   std::unique_ptr<BaseAST> rel_exp;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "EqExp {" << std::endl;
+    os << "EqExpAST {\n";
+    if (eq_exp) eq_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "eq_exp: " << std::endl;
-    eq_exp->Dump(os, indent + 1);
-    print_indent(os, indent + 1);
-    os << "op: " << op << std::endl;
-    print_indent(os, indent + 1);
-    os << "rel_exp: " << std::endl;
-    rel_exp->Dump(os, indent + 1);
+    os << "op: " << op << "\n";
+    if (rel_exp) rel_exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string eq_exp_name = eq_exp->OutputIR();
-    std::string rel_exp_name = rel_exp->OutputIR();
+    std::string eq_exp_name = eq_exp ? eq_exp->OutputIR() : "0";
+    std::string rel_exp_name = rel_exp ? rel_exp->OutputIR() : "0";
+    std::string reg = ASTContext::NewReg();
+
     if (op == "==") {
-      std::string reg = ASTContext::NewReg();
       ASTContext::ir_buffer << "  " << reg << " = eq " << eq_exp_name << ", " << rel_exp_name << "\n";
-      return reg;
-    }
-    if (op == "!=") {
-      std::string reg = ASTContext::NewReg();
+    } else if (op == "!=") {
       ASTContext::ir_buffer << "  " << reg << " = ne " << eq_exp_name << ", " << rel_exp_name << "\n";
-      return reg;
     }
-    return "";
+    return reg;
+  }
+
+  std::optional<int> CalcValue() override {
+    if (!eq_exp || !rel_exp) return std::nullopt;
+    auto lhs = eq_exp->CalcValue();
+    auto rhs = rel_exp->CalcValue();
+
+    if (lhs.has_value() && rhs.has_value()) {
+      if (op == "==") return lhs.value() == rhs.value();
+      if (op == "!=") return lhs.value() != rhs.value();
+    }
+    return std::nullopt;
   }
 };
 
-class LAndExp : public BaseAST {
+class LAndExpAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> land_exp;
   std::string op;
   std::unique_ptr<BaseAST> eq_exp;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "LAndExp {" << std::endl;
+    os << "LAndExpAST {\n";
+    if (land_exp) land_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "land_exp: " << std::endl;
-    land_exp->Dump(os, indent + 1);
-    print_indent(os, indent + 1);
-    os << "op: " << op << std::endl;
-    print_indent(os, indent + 1);
-    os << "eq_exp: " << std::endl;
-    eq_exp->Dump(os, indent + 1);
+    os << "op: " << op << "\n";
+    if (eq_exp) eq_exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string land_exp_name = land_exp->OutputIR();
-    std::string eq_exp_name = eq_exp->OutputIR();
+    std::string land_exp_name = land_exp ? land_exp->OutputIR() : "0";
+    std::string eq_exp_name = eq_exp ? eq_exp->OutputIR() : "0";
     std::string land_exp_reg = ASTContext::NewReg();
     std::string eq_exp_reg = ASTContext::NewReg();
     std::string result_reg = ASTContext::NewReg();
-    ASTContext::ir_buffer << "  " << land_exp_reg << " = ne " << land_exp_name << ", " << 0 << "\n";
-    ASTContext::ir_buffer << "  " << eq_exp_reg << " = ne " << eq_exp_name << ", " << 0 << "\n";
+
+    ASTContext::ir_buffer << "  " << land_exp_reg << " = ne " << land_exp_name << ", 0\n";
+    ASTContext::ir_buffer << "  " << eq_exp_reg << " = ne " << eq_exp_name << ", 0\n";
     ASTContext::ir_buffer << "  " << result_reg << " = and " << land_exp_reg << ", " << eq_exp_reg << "\n";
     return result_reg;
   }
+
+  std::optional<int> CalcValue() override {
+    if (!land_exp || !eq_exp) return std::nullopt;
+    auto lhs = land_exp->CalcValue();
+    auto rhs = eq_exp->CalcValue();
+
+    if (lhs.has_value() && rhs.has_value()) {
+      return (lhs.value() != 0) && (rhs.value() != 0);
+    }
+    return std::nullopt;
+  }
 };
 
-class LOrExp : public BaseAST {
+class LOrExpAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> lor_exp;
   std::string op;
   std::unique_ptr<BaseAST> land_exp;
+
   void Dump(std::ostream& os, int indent) const override {
     print_indent(os, indent);
-    os << "LOrExp {" << std::endl;
+    os << "LOrExpAST {\n";
+    if (lor_exp) lor_exp->Dump(os, indent + 1);
     print_indent(os, indent + 1);
-    os << "lor_exp: " << std::endl;
-    lor_exp->Dump(os, indent + 1);
-    print_indent(os, indent + 1);
-    os << "op: " << op << std::endl;
-    print_indent(os, indent + 1);
-    os << "land_exp: " << std::endl;
-    land_exp->Dump(os, indent + 1);
+    os << "op: " << op << "\n";
+    if (land_exp) land_exp->Dump(os, indent + 1);
     print_indent(os, indent);
-    os << "}" << std::endl;
+    os << "}\n";
   }
+
   std::string OutputIR() override {
-    std::string lor_exp_name = lor_exp->OutputIR();
-    std::string land_exp_name = land_exp->OutputIR();
+    std::string lor_exp_name = lor_exp ? lor_exp->OutputIR() : "0";
+    std::string land_exp_name = land_exp ? land_exp->OutputIR() : "0";
     std::string lor_exp_reg = ASTContext::NewReg();
     std::string land_exp_reg = ASTContext::NewReg();
     std::string result_reg = ASTContext::NewReg();
-    ASTContext::ir_buffer << "  " << lor_exp_reg << " = ne " << lor_exp_name << ", " << 0 << "\n";
-    ASTContext::ir_buffer << "  " << land_exp_reg << " = ne " << land_exp_name << ", " << 0 << "\n";
+
+    ASTContext::ir_buffer << "  " << lor_exp_reg << " = ne " << lor_exp_name << ", 0\n";
+    ASTContext::ir_buffer << "  " << land_exp_reg << " = ne " << land_exp_name << ", 0\n";
     ASTContext::ir_buffer << "  " << result_reg << " = or " << lor_exp_reg << ", " << land_exp_reg << "\n";
     return result_reg;
   }
-};
-// 我们应该弄一个临时寄存器计数器，用来给寄存器命名。
-// 对UnaryExp, 他会调用下一级的outputIR
-// 下一级的outputIR要么是number,要么是另一层UnaryExp
 
-// 所以我们下一级outputIR应该返回一个字符串来给他操作，要么是数字，要么是一个临时寄存器
-// 这个字符串应该如何处理呢？考虑同一时间只有一个东西要outputIR,可以考虑建立一个静态成员
+  std::optional<int> CalcValue() override {
+    if (!lor_exp || !land_exp) return std::nullopt;
+    auto lhs = lor_exp->CalcValue();
+    auto rhs = land_exp->CalcValue();
+
+    if (lhs.has_value() && rhs.has_value()) {
+      return (lhs.value() != 0) || (rhs.value() != 0);
+    }
+    return std::nullopt;
+  }
+};
+
+class ConstDefAST : public BaseAST {
+public:
+  std::string ident;
+  std::unique_ptr<BaseAST> const_init_val;
+
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "ConstDefAST {\n";
+    print_indent(os, indent + 1);
+    os << "ident: " << ident << "\n";
+    if (const_init_val) const_init_val->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}\n";
+  }
+
+  std::string OutputIR() override {
+    if (const_init_val) {
+      auto val = const_init_val->CalcValue();
+      assert(val.has_value() && "Constant initializer must be a constant expression");
+      // 将常量名字与求出的常数值存入符号表
+      ASTContext::symbol_table[ident] = val.value();
+    }
+    // 常量定义不需要生成运行时的赋值 IR
+    return "";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "ConstDefAST is not an expression, cannot calculate value");
+    return std::nullopt;
+  }
+};
+
+class BTypeAST : public BaseAST {
+public:
+  std::string type;
+
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "BTypeAST {\n";
+    print_indent(os, indent + 1);
+    os << "type: " << type << "\n";
+    print_indent(os, indent);
+    os << "}\n";
+  }
+
+  std::string OutputIR() override {
+    return type;
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "BTypeAST is not an expression, cannot calculate value");
+    return std::nullopt;
+  }
+};
+
+class ConstDef_listAST : public BaseAST {
+public:
+  std::vector<std::unique_ptr<BaseAST>> const_def_vec;
+
+  void Dump(std::ostream& os, int indent) const override {
+    for (const auto& item : const_def_vec) {
+      if (item) item->Dump(os, indent);
+    }
+  }
+
+  std::string OutputIR() override {
+    for (const auto& item : const_def_vec) {
+      if (item) item->OutputIR();
+    }
+    return "";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "ConstDef_listAST is not an expression, cannot calculate value");
+    return std::nullopt;
+  }
+};
+
+class ConstDeclAST : public BaseAST {
+public:
+  std::unique_ptr<BaseAST> btype;
+  std::unique_ptr<BaseAST> const_def_list;
+
+  void Dump(std::ostream& os, int indent) const override {
+    print_indent(os, indent);
+    os << "ConstDeclAST {\n";
+    if (btype) btype->Dump(os, indent + 1);
+    if (const_def_list) const_def_list->Dump(os, indent + 1);
+    print_indent(os, indent);
+    os << "}\n";
+  }
+
+  std::string OutputIR() override {
+    if (btype) btype->OutputIR();
+    if (const_def_list) const_def_list->OutputIR();
+    return "";
+  }
+
+  std::optional<int> CalcValue() override {
+    assert(false && "ConstDeclAST is not an expression, cannot calculate value");
+    return std::nullopt;
+  }
+};

@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <memory>
+#include <vector>
 #include <string>
 #include "ast.hpp"
 
@@ -36,7 +37,7 @@ using namespace std;
 }
 
 // 
-%token INT RETURN
+%token INT RETURN CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token LE   // <=
@@ -49,8 +50,11 @@ using namespace std;
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp UnaryExp Exp Number
 %type <ast_val> MulExp AddExp RelExp EqExp LAndExp LOrExp
-%%
+%type <ast_val> Decl ConstDecl BType ConstDef ConstInitVal BlockItem LVal ConstExp 
 
+%type <ast_val> BlockItem_list ConstDef_list
+%%
+ 
 CompUnit
   : FuncDef {
     auto comp_unit = make_unique<CompUnitAST>();
@@ -72,15 +76,7 @@ FuncDef
 FuncType
   : INT {
     auto ast = new FuncTypeAST();
-    ast->type = make_unique<string>("int");
-    $$ = ast;
-  }
-  ;
-
-Block
-  : '{' Stmt '}' {
-    auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    ast->type = "int";
     $$ = ast;
   }
   ;
@@ -107,19 +103,19 @@ UnaryExp
   }
   | '+' UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->unary_op = unique_ptr<string>(new string("+"));
+    ast->unary_op = "+";
     ast->unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | '-' UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->unary_op = unique_ptr<string>(new string("-"));
+    ast->unary_op = "-";
     ast->unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | '!' UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->unary_op = unique_ptr<string>(new string("!"));
+    ast->unary_op = "!";
     ast->unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
@@ -136,6 +132,9 @@ PrimaryExp
     $$ = $2;
   }
   | Number {
+    $$ = $1;
+  }
+  | LVal {
     $$ = $1;
   }
   ;
@@ -226,14 +225,14 @@ EqExp
     $$ = $1;
   }
   | EqExp EQ RelExp {
-    auto ast = new EqExp();
+    auto ast = new EqExpAST();
     ast->eq_exp = unique_ptr<BaseAST>($1);
     ast->op = "==";
     ast->rel_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | EqExp NE RelExp {
-    auto ast = new EqExp();
+    auto ast = new EqExpAST();
     ast->eq_exp = unique_ptr<BaseAST>($1);
     ast->op = "!=";
     ast->rel_exp = unique_ptr<BaseAST>($3);
@@ -246,7 +245,7 @@ LAndExp
     $$ = $1;
   }
   | LAndExp AND EqExp {
-    auto ast = new LAndExp();
+    auto ast = new LAndExpAST();
     ast->land_exp = unique_ptr<BaseAST>($1);
     ast->op = "&&";
     ast->eq_exp = unique_ptr<BaseAST>($3);
@@ -259,11 +258,104 @@ LOrExp
     $$ = $1;
   }
   | LOrExp OR LAndExp {
-    auto ast = new LOrExp();
+    auto ast = new LOrExpAST();
     ast->lor_exp = unique_ptr<BaseAST>($1);
     ast->op = "||";
     ast->land_exp = unique_ptr<BaseAST>($3);
     $$ = ast;
+  }
+  ;
+
+Decl
+  : ConstDecl {
+    $$ = $1;
+  }
+  ;
+
+ConstDecl
+  : CONST BType ConstDef ConstDef_list ';' {
+    auto ast = new ConstDeclAST();
+    ast->btype = unique_ptr<BaseAST>($2);
+    auto list_ast = static_cast<ConstDef_listAST*>($4);
+    list_ast->const_def_vec.insert(list_ast->const_def_vec.begin(), unique_ptr<BaseAST>($3));
+    ast->const_def_list = unique_ptr<BaseAST>(list_ast);
+    $$ = ast;
+  }
+  ;
+
+ConstDef_list
+  : %empty {
+    auto ast = new ConstDef_listAST();
+    $$ = ast;
+  } 
+  | ConstDef ConstDef_list {
+    auto list_ast = static_cast<ConstDef_listAST*>($2);
+    list_ast->const_def_vec.insert(list_ast->const_def_vec.begin(), unique_ptr<BaseAST>($1));
+    $$ = list_ast;
+  }
+  ;
+
+BType
+  : INT {
+    auto ast = new BTypeAST();
+    ast->type = "int";
+    $$ = ast;
+  }
+
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new ConstDefAST();
+    ast->ident = *unique_ptr<string>($1);
+    ast->const_init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+ConstInitVal
+  : ConstExp {
+    $$ = $1;
+  }
+  ;
+
+BlockItem
+  : Decl {
+    $$ = $1;
+  }
+  | Stmt {
+    $$ = $1;
+  }
+  ;
+
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  ;
+
+ConstExp
+  : Exp {
+    $$ = $1;
+  }
+  ;
+
+Block
+  : '{' BlockItem_list '}' {
+    auto ast = new BlockAST();
+    ast->block_item_list = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+BlockItem_list
+  : %empty { 
+    $$ = new BlockItem_listAST(); 
+  }
+  | BlockItem_list BlockItem {
+    auto list_ast = static_cast<BlockItem_listAST*>($1);
+    list_ast->block_item_vec.push_back(unique_ptr<BaseAST>($2));
+    $$ = list_ast;
   }
   ;
 %%
